@@ -9,6 +9,8 @@ describe Sinatra::CommonRest do
     field :name,  type: String
     field :age,   type: Integer
     field :birth, type: Date
+
+    validates_uniqueness_of :name
   end
 
   class TestApplication < Sinatra::Base 
@@ -30,35 +32,43 @@ describe Sinatra::CommonRest do
   end
 
   describe "Basic operation" do
-    it "Should create a get '/example_models' route" do
-      get '/resources'
+    before :all do
+      @resource = Resource.create!( name: "Luis", age: 24, birth: Date.new( 1987, 2, 11) )
+    end
+
+    it "Should create a get '/resources' route" do
+      get "/resources"
       last_response.should_not be_not_found
     end
 
-    it "Should create a get '/example_models/:id' route" do
-      get '/resources/1234'
+    it "Should create a get '/resources/:id' route" do
+      get "/resources/#{@resource._id}"
       last_response.should_not be_not_found
     end
 
-    it "Should create a post '/example_models' route" do
-      post '/resources'
+    it "Should create a post '/resources' route" do
+      post "/resources"
       last_response.should_not be_not_found
     end
 
-    it "Should create a put '/example_models/:id' route" do
-      put '/resources/1234'
+    it "Should create a put '/resources/:id' route" do
+      put "/resources/#{@resource._id}"
       last_response.should_not be_not_found
     end
 
     it "Should create a delete '/example_models/:id' route" do
-      delete '/resources/1234'
+      delete "/resources/#{@resource._id}"
       last_response.should_not be_not_found
+    end
+
+    after :all do
+      Resource.delete_all
     end
   end
 
   describe "Internal functionality" do
     
-    describe "/resources" do
+    describe "get /resources" do
       
       before :all do
         Resource.create!( name: "Luis", age: 24, birth: Date.new( 1987, 2, 11) )
@@ -107,6 +117,171 @@ describe Sinatra::CommonRest do
         Resource.delete_all
       end
 
+    end
+
+    describe "get /resources/:id" do
+      before :all do
+       @res1 = Resource.create!( name: "Luis", age: 24, birth: Date.new( 1987, 2, 11) )
+       @res2 = Resource.create!( name: "Manolo", age: 13, birth: Date.new( 1998, 5, 15) )
+      end
+
+      it "Should retrieve information about the given resource" do
+        get "/resources/#{@res1._id}"
+
+        last_response.errors.should == ""
+        last_response.headers["Content-Type"].should == "application/json;charset=utf-8"
+        last_response.status.should == 200
+        
+        data = JSON.parse( last_response.body )
+        response_resource = Resource.new( data );
+
+        response_resource.name.should == "Luis"
+        response_resource.age.should == 24
+        response_resource.birth.should == Date.new( 1987, 2, 11 )
+       
+        get "/resources/#{@res2._id}"
+
+        last_response.errors.should == ""
+        last_response.headers["Content-Type"].should == "application/json;charset=utf-8"
+        last_response.status.should == 200
+        
+        data = JSON.parse( last_response.body )
+        response_resource = Resource.new( data );
+
+        response_resource.name.should == "Manolo"
+        response_resource.age.should == 13
+        response_resource.birth.should == Date.new( 1998, 5, 15 )
+      end
+
+      it "Should retrieve an error code 404 if the resource does not exist" do
+        resource = Resource.where( _id: "1234567890" ).first.should be_nil
+
+        get "/resources/1234567890" # That resource should not exist 
+
+        last_response.errors.should == ""
+        last_response.headers["Content-Type"].should == "application/json;charset=utf-8"
+        last_response.status.should == 404
+      end
+
+      after :all do
+        Resource.delete_all
+      end
+    end
+    
+    describe "post /resources" do
+      it "Create a new resource if parameters meet the resource validations" do
+        post "/resources", { :resource => { 
+          :name => "Alfonso", 
+          :age => 34, 
+          :birth => Date.new( 1968, 1, 2) 
+        }}.to_json
+
+        scheme = last_request.scheme
+        host = last_request.host
+        port = last_request.port
+        url = "#{scheme}://#{host}:#{port}/resources/"
+
+        last_response.errors.should == ""
+        last_response.headers["Content-Type"].should == "application/json;charset=utf-8"
+        last_response.status.should == 201
+        last_response.body.should =~ /^#{url}([a-z0-9]{24})$/
+      end
+
+      it "Should retrieve an error code 403 if the parameters do not meet resource validations" do
+        post "/resources", { :resource => { 
+          :name => "RepeatedName", 
+          :age => 34, 
+          :birth => Date.new( 1968, 1, 2) 
+        }}.to_json
+        
+        last_response.status.should == 201
+        
+        # Duplicate name!
+        post "/resources", { :resource => { 
+          :name => "RepeatedName", 
+          :age => 34, 
+          :birth => Date.new( 1968, 1, 2) 
+        }}.to_json
+
+        last_response.errors.should == ""
+        last_response.headers["Content-Type"].should == "application/json;charset=utf-8"
+        last_response.status.should == 403
+      end
+
+      it "Should retrieve an error code 400 if the request has malformed syntax" do
+        post "/resources", { :resource => { 
+          :name => "RepeatedName", 
+          :age => 34, 
+          :birth => Date.new( 1968, 1, 2) 
+        }} # .to_json not perform!!! sending a regular ruby Hash 
+        
+        last_response.errors.should == ""
+        last_response.headers["Content-Type"].should == "application/json;charset=utf-8"
+        last_response.status.should == 400
+      end
+
+      before :all do
+        Resource.delete_all
+      end
+    end
+
+    describe "put /resources/:id" do
+      it "Create a new resource if parameters meet the resource validations and the URL is known" do
+        put "/resources/12345678901234567890aaaa", { :resource => { 
+          :name => "Alfonso", 
+          :age => 34, 
+          :birth => Date.new( 1968, 1, 2) 
+        }}.to_json
+
+        last_response.errors.should == ""
+        last_response.headers["Content-Type"].should == "application/json;charset=utf-8"
+        last_response.status.should == 205
+        last_response.body.should == ""
+      end
+
+      it "Should retrieve an error code 403 if the parameters do not meet resource validations" do
+        post "/resources", { :resource => { 
+          :name => "RepeatedName", 
+          :age => 34, 
+          :birth => Date.new( 1968, 1, 2) 
+        }}.to_json
+        
+        post "/resources", { :resource => { 
+          :name => "NonRepeatedName", 
+          :age => 34, 
+          :birth => Date.new( 1968, 1, 2) 
+        }}.to_json
+        
+        last_response.status.should == 201
+        id = last_response.body.split("/").last
+
+        # Duplicate name!
+        put "/resources/#{id}", { :resource => { 
+          :name => "RepeatedName", 
+          :age => 34, 
+          :birth => Date.new( 1968, 1, 2) 
+        }}.to_json
+
+        last_response.errors.should == ""
+        last_response.headers["Content-Type"].should == "application/json;charset=utf-8"
+        last_response.status.should == 403
+      end
+
+      it "Should retrieve an error code 400 if the request has malformed syntax" do
+        post "/resources", { :resource => { 
+          :name => "RepeatedName", 
+          :age => 34, 
+          :birth => Date.new( 1968, 1, 2) 
+        }} # .to_json not perform!!! sending a regular ruby Hash 
+        
+        last_response.errors.should == ""
+        last_response.headers["Content-Type"].should == "application/json;charset=utf-8"
+        last_response.status.should == 400
+      end
+
+      before :all do
+        Resource.delete_all
+      end
     end
   end
 end

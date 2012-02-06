@@ -2,6 +2,7 @@ source :rubygems
 
 gem 'sinatra', '~> 1.3.2'
 gem 'mongoid', '~> 2.4.2'
+gem 'activesupport', '~> 3.2.1'
 
 group :development do
   gem "rspec", "~> 2.8.0"
