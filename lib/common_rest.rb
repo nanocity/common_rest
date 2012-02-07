@@ -12,16 +12,25 @@ module Sinatra
 
       default = {
         :id => "_id",
-        :only => [:show, :list, :create, :update, :delete]
+        :only => [:show, :list, :create, :update, :delete],
+        :singleton => false
         }.merge( options )
 
       if default[:only].include? :list
-        get "/#{class_name}" do 
-          klass.all.to_json
+        if default[:singleton]
+          get "/#{class_name_s}" do
+            resource = klass.all.first
+            return 404 if not resource
+            resource.to_json
+          end
+        else
+          get "/#{class_name}" do 
+            klass.all.to_json
+          end
         end
       end
 
-      if default[:only].include? :show
+      if !default[:singleton] and default[:only].include? :show
         get "/#{class_name}/:id" do
           resource = klass.where( default[:id] => params[:id] ).first
           return 404 if not resource
@@ -29,7 +38,7 @@ module Sinatra
         end
       end
 
-      if default[:only].include? :create
+      if !default[:singleton] and default[:only].include? :create
         post "/#{class_name}" do
           request.body.rewind
           begin
@@ -50,31 +59,63 @@ module Sinatra
       end
 
       if default[:only].include? :update
-        put "/#{class_name}/:id" do
-          request.body.rewind
-          begin        
-            data = JSON.parse( request.body.read )
-          rescue Exception
-            return [ 400, headers, "" ]
+        if default[:singleton]
+          put "/#{class_name_s}" do
+            request.body.rewind
+            begin        
+              data = JSON.parse( request.body.read )
+            rescue Exception
+              return [ 400, headers, "" ]
+            end
+            
+            begin
+              resource = klass.all.first || klass.new( data[class_name_s] )
+              resource.update_attributes!( data[class_name_s] )
+            rescue Exception
+              return [ 403, headers, "" ]
+            end
+            
+            [ 204, headers, "" ]
           end
-          
-          resource = klass.find_or_create_by( default[:id] => params[:id] )
+        else
+          put "/#{class_name}/:id" do
+            request.body.rewind
+            begin        
+              data = JSON.parse( request.body.read )
+            rescue Exception
+              return [ 400, headers, "" ]
+            end
+            
+            resource = klass.find_or_create_by( default[:id] => params[:id] )
 
-          begin
-            resource.update_attributes!( data[class_name_s] )
-          rescue Exception
-            return [ 403, headers, "" ]
+            begin
+              resource.update_attributes!( data[class_name_s] )
+            rescue Exception
+              return [ 403, headers, "" ]
+            end
+            
+            [ 204, headers, "" ]
           end
-          [ 204, headers, "" ]
+
         end
       end
 
       if default[:only].include? :delete
-        delete "/#{class_name}/:id" do
-          resource = klass.where( { default[:id] => params[:id] }.to_json ).first
-          return 404 if not resource 
-          resource.delete
-          [ 204, headers, "" ]
+        if default[:singleton]
+          delete "/#{class_name_s}" do
+            resource = klass.all.first
+            return 404 if not resource
+            resource.delete
+
+            [ 204, headers, "" ]
+          end
+        else
+          delete "/#{class_name}/:id" do
+            resource = klass.where( { default[:id] => params[:id] }.to_json ).first
+            return 404 if not resource 
+            resource.delete
+            [ 204, headers, "" ]
+          end
         end
       end
     end
