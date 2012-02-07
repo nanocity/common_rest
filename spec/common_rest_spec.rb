@@ -220,7 +220,7 @@ describe Sinatra::CommonRest do
         last_response.status.should == 400
       end
 
-      before :all do
+      after :all do
         Resource.delete_all
       end
     end
@@ -234,9 +234,16 @@ describe Sinatra::CommonRest do
         }}.to_json
 
         last_response.errors.should == ""
-        last_response.headers["Content-Type"].should == "application/json;charset=utf-8"
-        last_response.status.should == 205
-        last_response.body.should == ""
+        last_response.status.should == 204
+        # No Content-Type needed cause 204 - No Content
+        last_response.body.should be_empty
+
+        get "/resources/12345678901234567890aaaa"
+        
+        resource = Resource.new( JSON.parse( last_response.body ) )
+        resource.name.should == "Alfonso"
+        resource.age.should == 34
+        resource.birth.should == Date.new( 1968, 1, 2 )
       end
 
       it "Should retrieve an error code 403 if the parameters do not meet resource validations" do
@@ -253,10 +260,15 @@ describe Sinatra::CommonRest do
         }}.to_json
         
         last_response.status.should == 201
-        id = last_response.body.split("/").last
+
+        # Return the last posted resource
+        get last_response.body
+
+        # Create the resource
+        resource = Resource.new( JSON.parse( last_response.body ) )
 
         # Duplicate name!
-        put "/resources/#{id}", { :resource => { 
+        put "/resources/#{resource._id}", { :resource => { 
           :name => "RepeatedName", 
           :age => 34, 
           :birth => Date.new( 1968, 1, 2) 
@@ -272,6 +284,20 @@ describe Sinatra::CommonRest do
           :name => "RepeatedName", 
           :age => 34, 
           :birth => Date.new( 1968, 1, 2) 
+        }}.to_json 
+        
+        last_response.status.should == 201
+        
+        # Return the last posted resource
+        get last_response.body
+
+        # Create the resource
+        resource = Resource.new( JSON.parse( last_response.body ) )
+
+        put "/resources/#{resource._id}", { :resource => { 
+          :name => "Name", 
+          :age => 34, 
+          :birth => Date.new( 1968, 1, 2) 
         }} # .to_json not perform!!! sending a regular ruby Hash 
         
         last_response.errors.should == ""
@@ -279,7 +305,69 @@ describe Sinatra::CommonRest do
         last_response.status.should == 400
       end
 
-      before :all do
+      after :each do
+        Resource.delete_all
+      end
+    end
+
+    describe "delete /resource/:id" do
+      it "Should delete a resource given a valid id" do
+        post "/resources", { :resource => { 
+          :name => "RepeatedName", 
+          :age => 34, 
+          :birth => Date.new( 1968, 1, 2) 
+        }}.to_json 
+        
+        last_response.status.should == 201
+        
+        # Return the last posted resource
+        get last_response.body
+
+        # Create the resource
+        resource = Resource.new( JSON.parse( last_response.body ) )
+
+        delete "/resources/#{resource._id}"
+
+        last_response.errors.should == ""
+        # No Content-Type needed cause 204 - No Content
+        last_response.status.should == 204
+        last_response.body.should be_empty
+
+        get "/resources/#{resource._id}"
+
+        last_response.status.should == 404
+      end
+
+      it "Should retreieve an error code 404 if the resource does not exists" do
+        post "/resources", { :resource => { 
+          :name => "RepeatedName", 
+          :age => 34, 
+          :birth => Date.new( 1968, 1, 2) 
+        }}.to_json 
+        
+        last_response.status.should == 201
+        
+        # Return the last posted resource
+        get last_response.body
+
+        # Create the resource
+        resource = Resource.new( JSON.parse( last_response.body ) )
+
+        delete "/resources/#{resource._id}"
+
+        last_response.errors.should == ""
+        # No Content-Type needed cause 204 - No Content
+        last_response.status.should == 204
+        last_response.body.should be_empty
+
+        get "/resources/#{resource._id}"
+        last_response.status.should == 404
+
+        delete "/resources/#{resource._id}"
+        last_response.status.should == 404
+      end
+
+      after :each do
         Resource.delete_all
       end
     end

@@ -30,17 +30,17 @@ module Sinatra
         begin
           data = JSON.parse( request.body.read )
         rescue
-          return [400,headers,""]
+          return [ 400, headers, "" ]
         end
 
         begin
           resource = klass.create!( data[class_name_s] )
         rescue Exception
-          return [403, headers, ""]
+          return [ 403, headers, "" ]
         end
 
         url = "#{request.scheme}://#{request.host}:#{request.port}/#{class_name}/#{resource._id}"
-        [201, headers, url]
+        [ 201, headers, url ] 
       end
      
       put "/#{class_name}/:id" do
@@ -48,26 +48,24 @@ module Sinatra
         begin        
           data = JSON.parse( request.body.read )
         rescue Exception
-          return [400, headers, ""]
+          return [ 400, headers, "" ]
         end
-
+        
         resource = klass.find_or_create_by( default[:id] => params[:id] )
 
         begin
-          resource.update_attributes!( data[class_name] )
+          resource.update_attributes!( data[class_name_s] )
         rescue Exception
-          return [403, headers, ""]
+          return [ 403, headers, "" ]
         end
-
-        return [205, headers, ""]
+        [ 204, headers, "" ]
       end
 
       delete "/#{class_name}/:id" do
         resource = klass.where( { default[:id] => params[:id] }.to_json ).first
-        
-        #ResourceNotFound if not resource
-        
+        return 404 if not resource 
         resource.delete
+        [ 204, headers, "" ]
       end
     end
   end
