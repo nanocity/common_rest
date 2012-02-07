@@ -6,10 +6,10 @@ require 'rspec/autorun'
 require 'simplecov'
 require 'simplecov-rcov'
 
-require File.join( File.dirname( __FILE__ ), '..', 'lib/common_rest' )
-
 SimpleCov.formatter = SimpleCov::Formatter::RcovFormatter
 SimpleCov.start
+
+require File.join( File.dirname( __FILE__ ), '..', 'lib/common_rest' )
 
 # Set test environment
 set :environment, :test
