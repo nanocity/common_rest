@@ -16,7 +16,13 @@ module Sinatra
         :singleton => false
         }.merge( options )
 
-      if default[:only].include? :list
+      if !default[:singleton] and default[:only].include? :list
+          get "/#{class_name}" do 
+            klass.all.to_json
+          end
+      end
+
+      if default[:only].include? :show
         if default[:singleton]
           get "/#{class_name_s}" do
             resource = klass.all.first
@@ -24,17 +30,11 @@ module Sinatra
             resource.to_json
           end
         else
-          get "/#{class_name}" do 
-            klass.all.to_json
+          get "/#{class_name}/:id" do
+            resource = klass.where( default[:id] => params[:id] ).first
+            return 404 if not resource
+            resource.to_json
           end
-        end
-      end
-
-      if !default[:singleton] and default[:only].include? :show
-        get "/#{class_name}/:id" do
-          resource = klass.where( default[:id] => params[:id] ).first
-          return 404 if not resource
-          resource.to_json
         end
       end
 
